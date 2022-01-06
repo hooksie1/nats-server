@@ -14,6 +14,7 @@
 package server
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -335,5 +336,61 @@ func TestIPQueueDrain(t *testing.T) {
 		if recycled {
 			break
 		}
+	}
+}
+
+type testIPQLog struct {
+	t    int
+	msgs []string
+}
+
+func (l *testIPQLog) threshold() int {
+	return l.t
+}
+
+func (l *testIPQLog) log(name string, pending int) {
+	l.msgs = append(l.msgs, fmt.Sprintf("%s: %d pending", name, pending))
+}
+
+func TestIPQueueLogger(t *testing.T) {
+	l := &testIPQLog{t: 2}
+	q := newIPQueue(ipQueue_Logger("test_logger", l))
+	q.push(1)
+	q.push(2)
+	if len(l.msgs) != 1 {
+		t.Fatalf("Unexpected logging: %v", l.msgs)
+	}
+	if l.msgs[0] != "test_logger: 2 pending" {
+		t.Fatalf("Unexpected content: %v", l.msgs[0])
+	}
+	l.msgs = nil
+	q.push(3)
+	if len(l.msgs) != 1 {
+		t.Fatalf("Unexpected logging: %v", l.msgs)
+	}
+	if l.msgs[0] != "test_logger: 3 pending" {
+		t.Fatalf("Unexpected content: %v", l.msgs[0])
+	}
+	l.msgs = nil
+	q.popOne()
+	q.push(4)
+	if len(l.msgs) != 1 {
+		t.Fatalf("Unexpected logging: %v", l.msgs)
+	}
+	if l.msgs[0] != "test_logger: 3 pending" {
+		t.Fatalf("Unexpected content: %v", l.msgs[0])
+	}
+	l.msgs = nil
+	q.pop()
+	q.push(5)
+	if len(l.msgs) != 0 {
+		t.Fatalf("Unexpected logging: %v", l.msgs)
+	}
+	q.push(6)
+	if len(l.msgs) != 1 {
+		t.Fatalf("Unexpected logging: %v", l.msgs)
+	}
+	if l.msgs[0] != "test_logger: 2 pending" {
+		t.Fatalf("Unexpected content: %v", l.msgs[0])
 	}
 }

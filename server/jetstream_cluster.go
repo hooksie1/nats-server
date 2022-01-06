@@ -5007,6 +5007,7 @@ func (mset *stream) processSnapshot(snap *streamSnapshot) error {
 	mset.store.FastState(&state)
 	sreq := mset.calculateSyncRequest(&state, snap)
 	s, js, subject, n := mset.srv, mset.js, mset.sa.Sync, mset.node
+	qname := fmt.Sprintf("Stream %q snapshot", mset.cfg.Name)
 	mset.mu.Unlock()
 
 	// Make sure our state's first sequence is <= the leader's snapshot.
@@ -5081,7 +5082,7 @@ RETRY:
 		reply string
 	}
 
-	msgsQ := newIPQueue() // of *im
+	msgsQ := newIPQueue(ipQueue_Logger(qname, s.ipqLog)) // of *im
 
 	// Send our catchup request here.
 	reply := syncReplySubject()

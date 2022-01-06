@@ -18,20 +18,35 @@ import (
 )
 
 const ipQueueDefaultMaxRecycleSize = 4 * 1024
+const ipQueueDefaultWarnThreshold = 32 * 1024
+
+type ipQueueLogger interface {
+	// Returns the threshold of pending elements in the queue at which the push()
+	// will invoke the log() function.
+	threshold() int
+	// The ipQueue will invoke this function with the queue's name and the number
+	// of pending elements. This call CANNOT block. It is ok to drop the logging
+	// if desired, but not block.
+	log(name string, pending int)
+}
 
 // This is a generic intra-process queue.
 type ipQueue struct {
 	sync.RWMutex
-	ch   chan struct{}
-	elts []interface{}
-	pos  int
-	pool *sync.Pool
-	mrs  int
+	ch     chan struct{}
+	elts   []interface{}
+	pos    int
+	pool   *sync.Pool
+	mrs    int
+	name   string
+	logger ipQueueLogger
 }
 
 type ipQueueOpts struct {
 	noPool         bool
 	maxRecycleSize int
+	name           string
+	logger         ipQueueLogger
 }
 
 type ipQueueOpt func(*ipQueueOpts)
@@ -53,14 +68,24 @@ func ipQueue_MaxRecycleSize(max int) ipQueueOpt {
 	}
 }
 
+// This option provides the logger to be used by this queue to log
+// when the number of pending elements reaches a certain threshold.
+func ipQueue_Logger(name string, l ipQueueLogger) ipQueueOpt {
+	return func(o *ipQueueOpts) {
+		o.name, o.logger = name, l
+	}
+}
+
 func newIPQueue(opts ...ipQueueOpt) *ipQueue {
 	qo := ipQueueOpts{maxRecycleSize: ipQueueDefaultMaxRecycleSize}
 	for _, o := range opts {
 		o(&qo)
 	}
 	q := &ipQueue{
-		ch:  make(chan struct{}, 1),
-		mrs: qo.maxRecycleSize,
+		ch:     make(chan struct{}, 1),
+		mrs:    qo.maxRecycleSize,
+		name:   qo.name,
+		logger: qo.logger,
 	}
 	if !qo.noPool {
 		q.pool = &sync.Pool{}
@@ -91,6 +116,9 @@ func (q *ipQueue) push(e interface{}) int {
 	}
 	q.elts = append(q.elts, e)
 	l++
+	if q.logger != nil && l >= q.logger.threshold() {
+		q.logger.log(q.name, l)
+	}
 	q.Unlock()
 	if signal {
 		select {
