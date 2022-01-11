@@ -373,13 +373,13 @@ func (s *Server) startRaftNode(cfg *RaftConfig) (RaftNode, error) {
 		quit:     make(chan struct{}),
 		wtvch:    make(chan struct{}, 1),
 		wpsch:    make(chan struct{}, 1),
-		reqs:     newIPQueue(ipQueue_NoPool()),                                     // of *voteRequest
-		votes:    newIPQueue(ipQueue_NoPool()),                                     // of *voteResponse
+		reqs:     newIPQueue(),                                                     // of *voteRequest
+		votes:    newIPQueue(),                                                     // of *voteResponse
 		prop:     newIPQueue(ipQueue_Logger(qpfx+"Entry", s.ipqLog)),               // of *Entry
 		entry:    newIPQueue(ipQueue_Logger(qpfx+"AppendEntry", s.ipqLog)),         // of *appendEntry
 		resp:     newIPQueue(ipQueue_Logger(qpfx+"AppendEntryResponse", s.ipqLog)), // of *appendEntryResponse
 		apply:    newIPQueue(ipQueue_Logger(qpfx+"CommittedEntry", s.ipqLog)),      // of *CommittedEntry
-		stepdown: newIPQueue(ipQueue_NoPool()),                                     // of string
+		stepdown: newIPQueue(),                                                     // of string
 		leadc:    make(chan bool, 1),
 		observer: cfg.Observer,
 		extSt:    ps.domainExt,
@@ -2104,7 +2104,7 @@ func (n *raft) catchupFollower(ar *appendEntryResponse) {
 	}
 	// Create a queue for delivering updates from responses.
 	qname := fmt.Sprintf("RAFT [%s - %s] Index updates", n.id, n.group)
-	indexUpdates := newIPQueue(ipQueue_Logger(qname, n.s.ipqLog), ipQueue_NoPool()) // of uint64
+	indexUpdates := newIPQueue(ipQueue_Logger(qname, n.s.ipqLog)) // of uint64
 	indexUpdates.push(ae.pindex)
 	n.progress[ar.peer] = indexUpdates
 	n.Unlock()

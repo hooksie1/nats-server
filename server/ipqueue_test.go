@@ -41,21 +41,6 @@ func TestIPQueueBasic(t *testing.T) {
 		t.Fatalf("Expected len to be 0, got %v", l)
 	}
 
-	// Now create queue without pool and check pool is nil
-	q = newIPQueue(ipQueue_NoPool())
-	if q.pool != nil {
-		t.Fatal("Pool should not have been created")
-	}
-	// When there is no pool check that we don't crash for operations that
-	// would otherwise try to get/put back to the pool
-	q.push(1)
-	elts := q.pop()
-	q.recycle(&elts)
-	q.push(2)
-	q.popOne()
-	q.push(3)
-	q.drain()
-
 	// Try to change the max recycle size
 	q = newIPQueue(ipQueue_MaxRecycleSize(10))
 	if q.mrs != 10 {

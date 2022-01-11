@@ -2724,7 +2724,7 @@ func (s *Server) processStreamRestore(ci *ClientInfo, acc *Account, cfg *StreamC
 
 	// For signaling to upper layers.
 	resultCh := make(chan result, 1)
-	activeQ := newIPQueue(ipQueue_NoPool()) // of int
+	activeQ := newIPQueue() // of int
 
 	var total int
 

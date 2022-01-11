@@ -43,22 +43,12 @@ type ipQueue struct {
 }
 
 type ipQueueOpts struct {
-	noPool         bool
 	maxRecycleSize int
 	name           string
 	logger         ipQueueLogger
 }
 
 type ipQueueOpt func(*ipQueueOpts)
-
-// This option allows the queue to be created without a sync.Pool.
-// This is useful for queues that only call popOne() and will never
-// use recycle.
-func ipQueue_NoPool() ipQueueOpt {
-	return func(o *ipQueueOpts) {
-		o.noPool = true
-	}
-}
 
 // This option allows to set the maximum recycle size when attempting
 // to put back a slice to the pool.
@@ -86,9 +76,7 @@ func newIPQueue(opts ...ipQueueOpt) *ipQueue {
 		mrs:    qo.maxRecycleSize,
 		name:   qo.name,
 		logger: qo.logger,
-	}
-	if !qo.noPool {
-		q.pool = &sync.Pool{}
+		pool:   &sync.Pool{},
 	}
 	return q
 }
@@ -102,13 +90,11 @@ func (q *ipQueue) push(e interface{}) int {
 	l := len(q.elts) - q.pos
 	if l == 0 {
 		signal = true
-		if q.pool != nil {
-			eltsi := q.pool.Get()
-			if eltsi != nil {
-				// Reason we use pointer to slice instead of slice is explained
-				// here: https://staticcheck.io/docs/checks#SA6002
-				q.elts = (*(eltsi.(*[]interface{})))[:0]
-			}
+		eltsi := q.pool.Get()
+		if eltsi != nil {
+			// Reason we use pointer to slice instead of slice is explained
+			// here: https://staticcheck.io/docs/checks#SA6002
+			q.elts = (*(eltsi.(*[]interface{})))[:0]
 		}
 		if cap(q.elts) == 0 {
 			q.elts = make([]interface{}, 0, 32)
@@ -173,9 +159,7 @@ func (q *ipQueue) popOne() interface{} {
 		}
 	} else {
 		// We have just emptied the queue, so we can recycle now.
-		if q.pool != nil {
-			q.pool.Put(&q.elts)
-		}
+		q.pool.Put(&q.elts)
 		q.elts, q.pos = nil, 0
 	}
 	q.Unlock()
@@ -215,9 +199,7 @@ func (q *ipQueue) len() int {
 func (q *ipQueue) drain() {
 	q.Lock()
 	if q.elts != nil {
-		if q.pool != nil {
-			q.pool.Put(&q.elts)
-		}
+		q.pool.Put(&q.elts)
 		q.elts, q.pos = nil, 0
 	}
 	// Consume the signal if it was present to reduce the chance of a reader
