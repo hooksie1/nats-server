@@ -2040,7 +2040,7 @@ func (o *consumer) processNextMsgReq(_ *subscription, c *client, _ *Account, _, 
 
 	sendErr := func(status int, description string) {
 		hdr := []byte(fmt.Sprintf("NATS/1.0 %d %s\r\n\r\n", status, description))
-		o.outq.send(&jsPubMsg{reply, _EMPTY_, _EMPTY_, hdr, nil, nil, 0})
+		o.outq.send(newJSPubMsg(reply, _EMPTY_, _EMPTY_, hdr, nil, nil, 0))
 	}
 
 	if o.isPushMode() {
@@ -2247,7 +2247,7 @@ func (o *consumer) forceExpireFirstWaiting() *waitingRequest {
 	if rr := o.acc.sl.Match(wr.reply); len(rr.psubs)+len(rr.qsubs) > 0 && o.mset != nil {
 		// We still appear to have interest, so send alert as courtesy.
 		hdr := []byte("NATS/1.0 408 Request Timeout\r\n\r\n")
-		o.outq.send(&jsPubMsg{wr.reply, _EMPTY_, _EMPTY_, hdr, nil, nil, 0})
+		o.outq.send(newJSPubMsg(wr.reply, _EMPTY_, _EMPTY_, hdr, nil, nil, 0))
 	}
 	return wr
 }
@@ -2447,7 +2447,7 @@ func (o *consumer) loopAndGatherMsgs(qch chan struct{}) {
 					addOn := []byte(fmt.Sprintf("%s: %s\r\n\r\n", JSConsumerStalled, fcp))
 					hdr = append(hdr[:len(hdr)-LEN_CR_LF], []byte(addOn)...)
 				}
-				outq.send(&jsPubMsg{odsubj, _EMPTY_, _EMPTY_, hdr, nil, nil, 0})
+				outq.send(newJSPubMsg(odsubj, _EMPTY_, _EMPTY_, hdr, nil, nil, 0))
 			}
 			// Reset our idle heartbeat timer.
 			hb.Reset(hbd)
@@ -2520,7 +2520,7 @@ func (o *consumer) deliverMsg(dsubj, subj string, hdr, msg []byte, seq, dc uint6
 		msg = nil
 	}
 
-	pmsg := &jsPubMsg{dsubj, subj, o.ackReply(seq, dseq, dc, ts, o.adjustedPending()), hdr, msg, o, seq}
+	pmsg := newJSPubMsg(dsubj, subj, o.ackReply(seq, dseq, dc, ts, o.adjustedPending()), hdr, msg, o, seq)
 	if o.maxpb > 0 {
 		o.pbytes += pmsg.size()
 	}
@@ -2628,7 +2628,7 @@ func (o *consumer) sendFlowControl() {
 	subj, rply := o.cfg.DeliverSubject, o.fcReply()
 	o.fcsz, o.fcid = o.pbytes, rply
 	hdr := []byte("NATS/1.0 100 FlowControl Request\r\n\r\n")
-	o.outq.send(&jsPubMsg{subj, _EMPTY_, rply, hdr, nil, nil, 0})
+	o.outq.send(newJSPubMsg(subj, _EMPTY_, rply, hdr, nil, nil, 0))
 }
 
 // Tracks our outstanding pending acks. Only applicable to AckExplicit mode.

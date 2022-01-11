@@ -1678,7 +1678,7 @@ func (mset *stream) setupMirrorConsumer() error {
 		subject = strings.ReplaceAll(subject, "..", ".")
 	}
 
-	mset.outq.send(&jsPubMsg{subject, _EMPTY_, reply, nil, b, nil, 0})
+	mset.outq.send(newJSPubMsg(subject, _EMPTY_, reply, nil, b, nil, 0))
 
 	go func() {
 		select {
@@ -1880,7 +1880,7 @@ func (mset *stream) setSourceConsumer(iname string, seq uint64) {
 		subject = strings.ReplaceAll(subject, "..", ".")
 	}
 
-	mset.outq.send(&jsPubMsg{subject, _EMPTY_, reply, nil, b, nil, 0})
+	mset.outq.send(newJSPubMsg(subject, _EMPTY_, reply, nil, b, nil, 0))
 
 	go func() {
 		select {
@@ -3068,6 +3068,20 @@ type jsPubMsg struct {
 	seq   uint64
 }
 
+var jsPubMsgPool sync.Pool
+
+func newJSPubMsg(subj, dsubj, reply string, hdr, msg []byte, o *consumer, seq uint64) *jsPubMsg {
+	var m *jsPubMsg
+	pm := jsPubMsgPool.Get()
+	if pm != nil {
+		m = pm.(*jsPubMsg)
+	} else {
+		m = &jsPubMsg{}
+	}
+	(*m) = jsPubMsg{subj, dsubj, reply, hdr, msg, o, seq}
+	return m
+}
+
 func (pm *jsPubMsg) size() int {
 	if pm == nil {
 		return 0
@@ -3082,7 +3096,7 @@ type jsOutQ struct {
 
 func (q *jsOutQ) sendMsg(subj string, msg []byte) {
 	if q != nil {
-		q.send(&jsPubMsg{subj, _EMPTY_, _EMPTY_, nil, msg, nil, 0})
+		q.send(newJSPubMsg(subj, _EMPTY_, _EMPTY_, nil, msg, nil, 0))
 	}
 }
 
@@ -3192,6 +3206,7 @@ func (mset *stream) internalLoop() {
 				if pm.o != nil && pm.seq > 0 && !didDeliver {
 					pm.o.didNotDeliver(pm.seq)
 				}
+				jsPubMsgPool.Put(pmi)
 			}
 			// TODO: Move in the for-loop?
 			c.flushClients(0)
